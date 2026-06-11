@@ -10,6 +10,45 @@
 
 ---
 
+## The Problem
+
+Biotech companies lose competitive advantage when they miss new patents or competitor publications. Manually checking PubMed every day for new patents and competitor research is time-consuming and easy to forget.
+
+Missing a competitor's patent filing can cost a company millions.
+
+---
+
+## The Solution
+
+Patent & Competitor Tracker automatically monitors PubMed on a schedule, generates AI summaries of new findings, stores everything in Airtable, and sends email alerts — so nothing is ever missed.
+
+- Zero manual effort — runs automatically on schedule
+- AI summaries so you understand findings instantly
+- Full history stored in Airtable for reference
+- Gmail alerts delivered directly to your inbox
+
+---
+
+## Time & Effort Saved
+
+| Task | Manual | This Automation |
+|---|---|---|
+| Checking PubMed daily | 30-60 mins/day | Zero — fully automatic |
+| Reading & summarizing papers | Hours | AI summary in seconds |
+| Storing findings | Manual spreadsheet | Auto-saved to Airtable |
+| Getting alerts | Not possible | Instant Gmail notification |
+
+---
+
+## Final Output
+
+- ✅ AI-generated summary per new patent/paper
+- ✅ All results stored in Airtable with date and metadata
+- ✅ Gmail HTML alert with new findings
+- ✅ Full searchable history in Airtable database
+
+---
+
 ## What It Does
 
 Automatically monitors PubMed for new patents and competitor research, generates AI summaries, stores in Airtable, and sends email alerts.
