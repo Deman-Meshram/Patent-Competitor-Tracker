@@ -1,0 +1,580 @@
+{
+  "name": "Patent & Competitor Tracker - AI",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "56c25913-496d-4bc5-825c-14fcfed21c7a",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=CRISPR+OR+mRNA+vaccine+OR+gene+therapy+OR+durg+delivery+OR+immunotherapy+patent&retmax=10&retmode=json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "dbcf8ca5-5b1c-432f-9091-ab80e40d464c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "=https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={{$json.esearchresult.idlist.join(',')}}&retmode=json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        0
+      ],
+      "id": "b34cf958-02b3-46c0-b1b0-bcd9472debaa",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst result = items[0].json.result;\nconst outputItems = [];\n\nfor (const id in result) {\n  if (id === 'uids') continue;\n  const paper = result[id];\n  \n  // Date fix\n  let formattedDate = null;\n  if (paper.pubdate) {\n    const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};\n    const parts = paper.pubdate.split(' ');\n    if (parts.length >= 3) {\n      formattedDate = `${parts[0]}-${months[parts[1]]}-${parts[2].padStart(2,'0')}`;\n    } else if (parts.length === 2) {\n      formattedDate = `${parts[0]}-${months[parts[1]]}-01`;\n    }\n  }\n\n  // Keywords fix\n  let keywords = 'Unknown';\n  if (paper.keywords && paper.keywords.length > 0) {\n    keywords = paper.keywords.join(', ');\n  } else if (paper.mesh && paper.mesh.length > 0) {\n    keywords = paper.mesh.map(m => m.term).join(', ');\n  }\n\n  outputItems.push({\n    json: {\n      Patent_ID: paper.uid,\n      title: paper.title || 'No title',\n      company: paper.source || 'Unknown',\n      date: paper.pubdate ? (() => {\n  const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};\n  const parts = paper.pubdate.split(' ');\n  if (parts.length >= 3) return `${parts[0]}-${months[parts[1]]}-${parts[2].padStart(2,'0')}`;\n  if (parts.length === 2) return `${parts[0]}-${months[parts[1]]}-01`;\n  if (parts.length === 1) return `${parts[0]}-01-01`;\n  return null;\n})() : null,\n      authors: paper.authors ? paper.authors.map(a => a.name).join(', ') : 'Unknown',\n      uid: paper.uid,\n      url: `https://pubmed.ncbi.nlm.nih.gov/${paper.uid}/`,\n      keywords: paper.mesh ? paper.mesh.map(m => m.term).join(', ') : 'Unknown',\n    }\n  });\n}\n\nreturn outputItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "19013b4c-04ed-4f61-a581-7b57b1425196",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Create or update a record').all();\nconst prevItems = $('Code in JavaScript').all();\nconst openAIItems = $('AI Agent').all();\n\nconst today = new Date().toLocaleDateString('en-US', {\n  year: 'numeric', month: 'long', day: 'numeric'\n});\nconst paperCount = prevItems.length;\nlet rows = '';\n\nprevItems.forEach((prev, index) => {\n  const summary = openAIItems[index]?.json.output ||\n                  openAIItems[index]?.json.text ||\n                  openAIItems[index]?.json.message?.content ||\n                  'No summary';\n  const ID = prev.json.Patent_ID || '';\n  const title = prev.json.title || '';\n  const date = prev.json.date || '';\n  const company = prev.json.company || '';\n  const authors = prev.json.authors || '';\n  const url = prev.json.url || '#';\n\n  rows += `\n    <tr>\n      <td style=\"padding:10px;border:1px solid #ddd\">\n        <a href=\"${url}\" style=\"font-weight:bold;color:#1a5276;text-decoration:none\">${title}</a><br>\n        <small style=\"color:gray\">${date} | ${company}</small><br>\n        <small>${authors}</small><br>\n        <a href=\"${url}\" style=\"font-size:11px;color:#2980b9\">View on PubMed →</a>\n      </td>\n      <td style=\"padding:10px;border:1px solid #ddd;font-size:13px\">${summary}</td>\n    </tr>\n  `;\n});\n\nconst html = `\n<h2 style=\"color:#1a5276\">🔬 Daily Biotech Research & Patent Alert</h2>\n<p><b>📅 ${today}</b> — <b>${paperCount} new publications</b> found across tracked topics</p>\n<p style=\"color:gray;font-size:12px\">Topics: CRISPR | mRNA Vaccine | Gene Therapy | Drug Delivery | Immunotherapy</p>\n<table style=\"border-collapse:collapse;width:100%\">\n  <tr style=\"background:#1a5276;color:white\">\n    <th style=\"padding:10px;width:40%\">Paper Details</th>\n    <th style=\"padding:10px;width:60%\">AI Summary</th>\n  </tr>\n  ${rows}\n</table>\n<br>\n<p style=\"color:gray;font-size:11px\"><i>Automated by Biotech Research Tracker</i></p>\n`;\n\nreturn [{ json: { html, subject: `🔬 ${paperCount} New Biotech Papers — ${today}` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        0
+      ],
+      "id": "212d79ab-de1c-4f29-bae2-8547104a5919",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "sendTo": "roylee000002@gmail.com",
+        "subject": "={{ $('Code in JavaScript1').item.json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1936,
+        0
+      ],
+      "id": "9188c8b3-6f21-417e-8e69-5220f6adab73",
+      "name": "Send a message",
+      "webhookId": "43da34eb-c930-4e1a-a904-0dae9b8a5048",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OrZFSQuzaE8B9tpn",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appW0MwZ9Xm9vUSPa",
+          "mode": "list",
+          "cachedResultName": "Biotech Automation",
+          "cachedResultUrl": "https://airtable.com/appW0MwZ9Xm9vUSPa"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUkk0y8VybuvzRX",
+          "mode": "list",
+          "cachedResultName": "Patent Tracker",
+          "cachedResultUrl": "https://airtable.com/appW0MwZ9Xm9vUSPa/tblUkk0y8VybuvzRX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent_ID": "={{ $json.Patent_ID }}",
+            "Company": "={{ $json.company }}",
+            "Source_URL": "={{ $json.url }}",
+            "Date_Published": "={{ $json.date }}",
+            "Patent_Title": "={{ $json.title }}",
+            "Status": "New"
+          },
+          "matchingColumns": [
+            "Patent_ID"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Patent_ID",
+              "displayName": "Patent_ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Patent_Title",
+              "displayName": "Patent_Title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Date_Published",
+              "displayName": "Date_Published",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Keyword",
+              "displayName": "Keyword",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Source_URL",
+              "displayName": "Source_URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "New",
+                  "value": "New"
+                },
+                {
+                  "name": "Reviewed",
+                  "value": "Reviewed"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "77a7a45c-e727-4bd5-9159-533e0f646196",
+      "name": "Create or update a record",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "y6meb9PHVtZ35e2r",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appW0MwZ9Xm9vUSPa",
+          "mode": "list",
+          "cachedResultName": "Biotech Automation",
+          "cachedResultUrl": "https://airtable.com/appW0MwZ9Xm9vUSPa"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUkk0y8VybuvzRX",
+          "mode": "list",
+          "cachedResultName": "Patent Tracker",
+          "cachedResultUrl": "https://airtable.com/appW0MwZ9Xm9vUSPa/tblUkk0y8VybuvzRX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Patent_ID": "={{ $('Create or update a record').item.json.fields.Patent_ID }}",
+            "Summary": "={{ $json.output }}"
+          },
+          "matchingColumns": [
+            "Patent_ID"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Patent_ID",
+              "displayName": "Patent_ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Patent_Title",
+              "displayName": "Patent_Title",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Date_Published",
+              "displayName": "Date_Published",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Keyword",
+              "displayName": "Keyword",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Source_URL",
+              "displayName": "Source_URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "New",
+                  "value": "New"
+                },
+                {
+                  "name": "Reviewed",
+                  "value": "Reviewed"
+                }
+              ],
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1488,
+        0
+      ],
+      "id": "3f55b313-2b07-47bd-abba-d3b7908a3b0c",
+      "name": "Update record",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "y6meb9PHVtZ35e2r",
+          "name": "Airtable OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Summarize this biotech research paper in 2-3 sentence for a pharmaceutical professional. \n\nFocus on key finding and business relevance.\n\nTitle: {{ $('Code in JavaScript').item.json.title }}\nAuthors: {{ $('Code in JavaScript').item.json.authors }}\nSource: {{ $('Code in JavaScript').item.json.company }}\nDate: {{ $('Code in JavaScript').item.json.date }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1104,
+        0
+      ],
+      "id": "f5c9b9fe-d493-435d-99be-9e145699af65",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        976,
+        208
+      ],
+      "id": "54a87117-d290-4e3a-9a6f-7107df26918e",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "GJZnIqXcp0km7SNt",
+          "name": "Groq account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create or update a record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or update a record": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update record": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Update record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f5e98e9c-19f8-4960-a7f7-06302fd3e97f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e7ea9f942d522f0faaaeb740566eb23eb2fe592628499c83cacfa121be29288c"
+  },
+  "nodeGroups": [],
+  "id": "kEkyUA5iotTfuCRh",
+  "tags": [
+    {
+      "updatedAt": "2026-06-09T07:09:52.039Z",
+      "createdAt": "2026-06-09T07:09:52.039Z",
+      "id": "25QcafTS16WgSsZy",
+      "name": "Complete"
+    }
+  ]
+}
