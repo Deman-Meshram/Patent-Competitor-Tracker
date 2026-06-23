@@ -1,10 +1,5 @@
 # Patent & Competitor Tracker — Biotech Intelligence Monitor
 
-## 🎬 Demo Video
-[▶ Watch Demo on YouTube](https://youtu.be/BePvFlMDYFE)
-
----
-
 > Automated patent and competitor monitoring for Biotech and Pharma professionals.
 
 
